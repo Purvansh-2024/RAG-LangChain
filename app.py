@@ -66,52 +66,55 @@ documents = load_documents()
 embeddings = load_embedding()
 chunks = get_splitted_chunks()
 
+
 @st.cache_data
 def create_vector_db(chunks,_embeddings):
-  # to build vector DB
-  vectorstore = FAISS.from_documents(chunks,_embeddings)
-  vectorstore.save_local("faiss_index")
-  return vectorstore
+    # Build Vector Database
+    vectorstore = FAISS.from_documents(chunks,_embeddings)
+    vectorstore.save_local("faiss_index")
+    return vectorstore
+
 
 @st.cache_data
-def create_retriever(vectorstore, k_value):
-  retriever = vecotrstore.as_retriever(search_kwargs={"k": k_value})
-  return retriever
+def create_retriever(_vectorstore, k_value):
+    retriever =_vectorstore.as_retriever(
+        search_kwargs={"k": k_value})
+    return retriever
 
-vectorstore = create_vector_db(chunks, embeddings)
+vectorstore = create_vector_db(chunks,embeddings)
 k_slider = st.sidebar.slider("Select Top K-Value",min_value=1,max_value=10)
+retriever = create_retriever(vectorstore,k_slider)
 
-retriever = create_retriever(vectorstore, k_slider)
+# ====================== STEP 6: LCEL RAG CHAIN ======================
+llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash")
+prompt = ChatPromptTemplate.from_template("""
+Answer the question using ONLY the context below.
+If the answer isn't in the context, say "I don't know based on the document."
 
-# ========================STEP 6: LCEL RAG CHAIN========================  
-llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash")  
-prompt = ChatPromptTemplate.from_template("""  
-Answer the question using ONLY the context below.  
-If the answer isn't in the context, say "I don't know based on the document."  
-  
-Context:  
-{context}  
-  
-Question: {question}  
-""")  
-  
-def format_docs(docs):  
-    # Join chunks of retrieved docs  
-    return "\n\n".join(doc.page_content for doc in docs)  
-  
-with st.spinner("Building RAG Chain"):  
-    rag_chain = (  
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}  
-        | prompt  
-        | llm  
-        | StrOutputParser()  
-    )  
-  
-# ========================GET USER INPUT========================  
-user_question = st.text_area("Ask Question: ")  
-if user_question:  
-    if st.button("Get Answer"):  
-      with st.spinner('wait...'):
+Context:
+{context}
+
+Question:
+{question}
+""")
+
+def format_docs(docs):
+    # Join chunks of retrieved documents
+    return "\n\n".join(doc.page_content for doc in docs)
+
+with st.spinner("Building RAG Chain"):
+    rag_chain = (
+        {"context": retriever | format_docs,"question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser())
+
+# ==================== GET USER INPUT ====================
+user_question = st.text_area("Ask Question:")
+
+if user_question:
+    if st.button("Get Answer"):
+      with st.spinner("Wait.."):
         st.write_stream(rag_chain.stream(user_question))
 
 
