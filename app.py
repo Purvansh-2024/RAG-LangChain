@@ -13,54 +13,64 @@ import streamlit as st
 import numpy as np
 import time
 from PIL import Image
-from dotenv import load_dotenv
 
-#=================STEP 2 API KEYS======================
-st.set_page_config(page_title = "Chat-With-PDF",
-                   layout = "wide")
+# =============STEP 2: API KEYS=====================
+st.set_page_config(
+    page_title="Chat-With-PDF",
+    layout="wide"
+)
 st.sidebar.title("SET API CONFIG")
-st.title("RAG based Chat With PDF")
-GOOGLE_API_KEY = st.sidebar.text_input("GOOGLE_API_KEY",type = "password")
+st.title("RAG Based Chat With PDF 📚")
+GOOGLE_API_KEY = st.sidebar.text_input(
+    "GOOGLE_API_KEY",
+    type="password")
 os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
-
-if GOOGLE_API_KEY:
-  st.sidebar.success("API key Loaded!")
-else:
-  st.sidebar.info("Give API key")
-
-#====================STEP 3: LOAD PDF===================
-uploaded_file = st.sidebar.file_uploaded("Upload PDF file", type = ["pdf"])
+# ==================== STEP 3: LOAD PDF ====================
+uploaded_file = st.sidebar.file_uploader(
+    "Upload PDF File",
+    type=["pdf"])
 
 if uploaded_file:
-  with st.spinner("Reqading PDF File"):
-    data = uploaded_file.read()
-    st.sidebar.pdf(data)
+    with st.spinner("Reading PDF File"):
+        data = uploaded_file.read()
+        st.sidebar.pdf(data)
 
-#===================STEP 4: LOAD RESOURCES===============
+if uploaded_file is not None:
+    save_dir = "pdf_files"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+      
+file_path = os.path.join(save_dir, uploaded_file.name)
+with open(file_path, "wb") as f:
+    f.write(uploaded_file.getbuffer())
+st.write(file_path)
+
+# ==================== STEP 4: LOAD RESOURCES ====================
 
 @st.cache_data
 def load_documents():
-  loader = PyPDFLoader(uploaded_file)
-  documents = loader.load()
-  return documents
-
-# st.cache_data: to load data only one time
-# st.cache_resource: to load resource only one time
+    loader = PyPDFLoader(file_path)
+    documents = loader.load()
+    return documents
 
 @st.cache_resource
 def load_embedding():
-  embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-  return embeddings
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    return embeddings
+  
+# st.cache_data:
+# Caches data so it is loaded only once.
 
 @st.cache_data
 def get_splitted_chunks():
-  splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200)
-  chunks = splitter.split_documents(documents)
-  return chunks
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200)
 
-#==============STEP 5: GET and LOAD DOCS=================
+    chunks = splitter.split_documents(documents)
+    return chunks
+
+# ==================== STEP 5: GET AND LOAD DOCS ====================
 
 documents = load_documents()
 embeddings = load_embedding()
@@ -116,7 +126,3 @@ if user_question:
     if st.button("Get Answer"):
       with st.spinner("Wait.."):
         st.write_stream(rag_chain.stream(user_question))
-
-
-
-
